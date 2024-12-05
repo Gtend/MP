@@ -6,41 +6,40 @@ import { createFFmpeg,  } from "@ffmpeg/ffmpeg";
 import React, { useRef, useState, createRef, useEffect } from 'react';
 
 
+// 돌아가는거 test.mp4 temp_video.mp4
+// 안돌아가는거 output.mp4 output_fixed.mp4
 
+// front에서 run process 누르면 back에서 temp video 보내서 띄워주기!! 
 function App() {
 
 
   //const backend_addr="168.188.128.151:4000"
   const backend_addr = "192.168.50.209:4000"
 
-  const [statusMessage, setStatusMessage] = useState(null); // 서버 응답 메시지 저장
+  const getVideo = () => {
+    console.log("get video from server");
 
-  const fetchStatus = () => {
-    console.log("Fetching status from server...");
-    setStatusMessage("Loading...");
-
-    fetch("http://" + backend_addr + "/get_status", { method: "GET" })
+    fetch("http://" + backend_addr + "/upload_video", { method: "GET" })
       .then((response) => {
         if (!response.ok) {
-          throw new Error("Failed to fetch status");
-        }
+          throw new Error("Failed to get video");
+        } 
         return response.json();
       })
-      .then((data) => {
-        console.log("Server Response:", data);
-        setStatusMessage(data.status || "No message received"); // 서버 응답 상태 저장
-        message.success(`Video Processed : ${data.status || "No message received"}`);
+      .then(data => {
+        console.log(data)
+        const detVideo=b64toBlob(data.video_result.split('base64,')[1], 'video/mp4')
+        handleVideoProcessing(detVideo);
+        console.log(detVideo)
+        console.log('yes!!!!!!!!')
+        console.log("getting local...")
+        console.log("Video Source SRC:", videoSrc);
+        console.log("hmmm");
       })
       .catch((error) => {
-        console.error("Error fetching status:", error);
-        setStatusMessage("Error fetching status"); // 에러 메시지 설정
-        message.success(`Server says: ${error || "Error fetching status"}`);
+        console.error("Video processing failed:", error);
       });
-      
-      
   };
-
-  
 
   function getBase64(file, cb) {
     let reader = new FileReader();
@@ -81,25 +80,19 @@ function App() {
       await ffmpeg.load();
   })();
 
-
-
-
-
-
   const uploaderRef = useRef(null);
 
   const [upProgStatus, setUpProgStatus] = useState('');
-  const [isUploaded, setUploaded] = useState(false);
+  const [isUploaded, setUploaded] = useState(true);
   const [isShowVideo, showVideo] = useState(false);
   const [isShowUpProg, showUpProg] = useState(false);
   const [imageSrc, setImageSrc] = useState([]);
 
-  const [videoSrc, setVideoSrc] = useState("");
-  // const [videoSrcList, setVideoSrcList] = useState([]);
-
-
+  const [videoSrc, setVideoSrc] = useState('');
+  const [videoSrcList, setVideoSrcList] = useState([]);
   const { Dragger } = Upload;
 
+  
 
   const props4img = {
     name: 'media',
@@ -107,12 +100,9 @@ function App() {
     action: backend_addr,
     maxCount:1,
     customRequest: async (req) => {
-      // showUpProg(true)
       const file=req.file
-      
       getBase64(file, (enc) => {
         console.log("uploadingg")
-        // console.log(enc)
         fetch("http://" + backend_addr + "/upload", {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -120,34 +110,18 @@ function App() {
         })
           .then(res => res.json())
           .then(data => {
-
-            // console.log(data.image_result)
-
-            const imageResult = data.image_result; // Base64 이미지 데이터
+            const imageResult = data.image_result;
             if (imageResult) {
-              const imgSrc = `data:image/png;base64,${imageResult}`; // src로 변환
-              // setImageSrc(imgSrc); // 상태에 저장하여 렌더링
-              setImageSrc((prevList) => [imgSrc, ...prevList]); // 기존 배열에 새로운 이미지 추가
+              const imgSrc = `data:image/png;base64,${imageResult}`;
+              setImageSrc((prevList) => [imgSrc, ...prevList]);
 
             } else {
               message.error("Image processing failed.");
             }
-
-            // const detVideo=b64toBlob(data['output_video'], 'image/jpg')
-            // console.log(detVideo)
-            // localStorage.setItem("detVideo", URL.createObjectURL(detVideo));
-
-            // setUpProgPercent(100);
-            // showVideo(true);
-            // showUpProg(false);
-            // setUploaded(true);
           });
       })
-
-      
+    
       setVideoSrc(localStorage.getItem("srcVideo"))
-      // videoRef.current.srcObject=localStorage.getItem("detVideo")
-      
     },
     beforeUpload: (file) => {
       const isMP4 = (file.type === 'image/jpg') || (file.type === 'image/png');
@@ -158,79 +132,20 @@ function App() {
     }
   };
 
-  const props = {
-    name: 'media',
-    multiple: false,
-    action: backend_addr,
-    maxCount:1,
-    customRequest: async (req) => {
-      // showUpProg(true)
-      const file=req.file
-      
-      localStorage.setItem("srcVideowantoshow",URL.createObjectURL(file))
-
-      // setUpProgPercent(20)
-      // setUpProgStatus("Loading the file...")
-      const srcFile=await file.arrayBuffer()
-      
-      ffmpeg.FS('writeFile', 'video.mp4', new Uint8Array(srcFile))
-
-      // setUpProgPercent(30)
-      // setUpProgStatus("Processing the file...")
-      
-      await ffmpeg.run('-i', 'video.mp4', '-ss', '0', '-t', '10', '1.mp4')
-      
-      const data = ffmpeg.FS('readFile','1.mp4')
-
-      // setUpProgPercent(70)
-      // setUpProgStatus("Working on AI...")
-
-      // console.log(PRatioRef.current.value)
-      console.log(file)
-      getBase64(file, (enc) => {
-        console.log(enc)
-        fetch("http://" + backend_addr + "/upload", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ video: enc })
-        })
-          .then(res => res.json())
-          .then(data => {
-
-            console.log(data)
-
-
-            const detVideo=b64toBlob(data.video_result.split('base64,')[1], 'video/mp4')
-            console.log(detVideo)
-            console.log('yes!!!!!!!!')
-            localStorage.setItem("detVideo", URL.createObjectURL(detVideo));
-
-            // setUpProgPercent(100);
-            // showVideo(true);
-            // showUpProg(false);
-            // setUploaded(true);
-          });
-      })
-
-      // showVideo(true);
-      // showUpProg(true)
-      // setUploaded(true);
-
-      setVideoSrc(localStorage.getItem("srcVideowantoshow"))
-      // videoRef.current.srcObject=localStorage.getItem("detVideo")
-      console.log("Video Source:", videoSrc);
-      console.log("hmmm");
-      
-    },
-    beforeUpload: (file) => {
-      const isMP4 = file.type === 'video/mp4';
-      if (!isMP4) {
-        message.error(`${file.name} is not a mp4 file`);
-      }
-      return isMP4 || Upload.LIST_IGNORE;
+  useEffect(() => {
+    if (isShowVideo && videoSrc) {
+      console.log("Video is ready to play:", videoSrc);
     }
+  }, [isShowVideo, videoSrc]);
+  
+  const handleVideoProcessing = (detVideo) => {
+    const detVideoUrl = URL.createObjectURL(detVideo);
+    localStorage.setItem("testVideo", detVideoUrl);
+    setVideoSrc(detVideoUrl);
+    console.log("LocalStorage Video Source:", localStorage.getItem("testVideo"));
+    showVideo(true);
+    console.log(isShowVideo)
   };
-
 
   const uploader = ()=>{
     return <><Dragger {...props4img} className='dropbox' ref={uploaderRef}>
@@ -240,30 +155,6 @@ function App() {
   </Dragger></>
   }
 
-  // const show_image = ()=>{
-  //   return <div className='imagebox'><Image
-  //   src="test.jpg"
-  //   />
-  //   <Image
-  //   src="person.png"
-  //   />
-  //   <Image
-  //   src="person.png"
-  //   />
-  //   <Image
-  //   src="person.png"
-  //   />
-  //   <Image
-  //   src="person.png"
-  //   />
-  //   <Image
-  //   src="person.png"
-  //   />
-  //   <Image
-  //   src="person.png"
-  //   />
-  //   </div>
-  // }
   const show_image = () => {
     return (
       <div className="imagebox">
@@ -283,14 +174,6 @@ function App() {
     );
   };
 
-  
-
-  // const start_btn = ()=>{
-  //   return <div className='start_btn'>
-  //     <Button className='start_btn' color="primary" variant="solid">Run process</Button>
-  //     </div>
-  // }
-
   const start_btn = () => {
     return (
       <div className="start_btn">
@@ -298,13 +181,14 @@ function App() {
           className="start_btn"
           color="primary"
           variant="solid"
-          onClick={fetchStatus}
+          onClick={getVideo}
         >
           Run process
         </Button>
       </div>
     );
   };
+
   const control_panel = ()=>{
     return <div className='control_panel'>
       {uploader()}
@@ -324,190 +208,39 @@ function App() {
     </Tooltip>
   );
 
-  const show_video = ()=>{
-    return <div className='videobox'>
-      <Card className='mainCard'  bordered={false}>
-          {(()=>{
-            const upProg=isShowUpProg?<>
-                  <Spin indicator={antIcon} size='large'><div style={{height:'60vh'}}/></Spin>
-                </>
-              :
-              <Dragger {...props} className='dropbox' ref={uploaderRef}>
-                <p className="ant-upload-drag-icon">
-                <PlusOutlined />
-                </p>
+  const renderCards = () => {
+    return Array(9).fill(null).map((_, index) => (
+      <Card key={index} className="mainCard" bordered={false}>
+        {isShowUpProg ? (
+          <Spin indicator={antIcon} size="large">
+            <div style={{ height: '60vh' }} />
+          </Spin>
+        ) : (
+          <>
+            {!isShowVideo ? (
+              <Dragger {...getVideo} className="dropbox" ref={uploaderRef}>
+                {/* <p className="ant-upload-drag-icon">
+                  <PlusOutlined />
+                </p> */}
               </Dragger>
-              
-            
-            return isShowVideo? 
-            <video 
-                  className='player' 
-                  src={videoSrc} />
-                :
-                upProg})()}
+            ) : (
+              <video
+                className="player video-player"
+                src={videoSrc}
+                autoPlay
+                controls
+                onLoadedData={() => console.log(`Video ${index + 1} loaded:`, videoSrc)}
+              />
+            )}
+          </>
+        )}
       </Card>
-      <Card className='mainCard'  bordered={false}>
-          {(()=>{
-            const upProg=isShowUpProg?<>
-                  <Spin indicator={antIcon} size='large'><div style={{height:'60vh'}}/></Spin>
-                </>
-              :
-              <Dragger {...props} className='dropbox' ref={uploaderRef}>
-                <p className="ant-upload-drag-icon">
-                <PlusOutlined />
-                </p>
-              </Dragger>
-              
-            
-            return isShowVideo? 
-            <video 
-                  className='player' 
-                  src={videoSrc} />
-                :
-                upProg})()}
-      </Card>
-      <Card className='mainCard'  bordered={false}>
-          {(()=>{
-            const upProg=isShowUpProg?<>
-                  <Spin indicator={antIcon} size='large'><div style={{height:'60vh'}}/></Spin>
-                </>
-              :
-              <Dragger {...props} className='dropbox' ref={uploaderRef}>
-                <p className="ant-upload-drag-icon">
-                <PlusOutlined />
-                </p>
-              </Dragger>
-              
-            
-            return isShowVideo? 
-            <video 
-                  className='player' 
-                  src={videoSrc} />
-                :
-                upProg})()}
-      </Card>
-      <Card className='mainCard'  bordered={false}>
-          {(()=>{
-            const upProg=isShowUpProg?<>
-                  <Spin indicator={antIcon} size='large'><div style={{height:'60vh'}}/></Spin>
-                </>
-              :
-              <Dragger {...props} className='dropbox' ref={uploaderRef}>
-                <p className="ant-upload-drag-icon">
-                <PlusOutlined />
-                </p>
-              </Dragger>
-              
-            
-            return isShowVideo? 
-            <video 
-                  className='player' 
-                  src={videoSrc} />
-                :
-                upProg})()}
-      </Card>
-      <Card className='mainCard'  bordered={false}>
-          {(()=>{
-            const upProg=isShowUpProg?<>
-                  <Spin indicator={antIcon} size='large'><div style={{height:'60vh'}}/></Spin>
-                </>
-              :
-              <Dragger {...props} className='dropbox' ref={uploaderRef}>
-                <p className="ant-upload-drag-icon">
-                <PlusOutlined />
-                </p>
-              </Dragger>
-              
-            
-            return isShowVideo? 
-            <video 
-                  className='player' 
-                  src={videoSrc} />
-                :
-                upProg})()}
-      </Card>
-      <Card className='mainCard'  bordered={false}>
-          {(()=>{
-            const upProg=isShowUpProg?<>
-                  <Spin indicator={antIcon} size='large'><div style={{height:'60vh'}}/></Spin>
-                </>
-              :
-              <Dragger {...props} className='dropbox' ref={uploaderRef}>
-                <p className="ant-upload-drag-icon">
-                <PlusOutlined />
-                </p>
-              </Dragger>
-              
-            
-            return isShowVideo? 
-            <video 
-                  className='player' 
-                  src={videoSrc} />
-                :
-                upProg})()}
-      </Card>
-      <Card className='mainCard'  bordered={false}>
-          {(()=>{
-            const upProg=isShowUpProg?<>
-                  <Spin indicator={antIcon} size='large'><div style={{height:'60vh'}}/></Spin>
-                </>
-              :
-              <Dragger {...props} className='dropbox' ref={uploaderRef}>
-                <p className="ant-upload-drag-icon">
-                <PlusOutlined />
-                </p>
-              </Dragger>
-              
-            
-            return isShowVideo? 
-            <video 
-                  className='player' 
-                  src={videoSrc} />
-                :
-                upProg})()}
-      </Card>
-      <Card className='mainCard'  bordered={false}>
-          {(()=>{
-            const upProg=isShowUpProg?<>
-                  <Spin indicator={antIcon} size='large'><div style={{height:'60vh'}}/></Spin>
-                </>
-              :
-              <Dragger {...props} className='dropbox' ref={uploaderRef}>
-                <p className="ant-upload-drag-icon">
-                <PlusOutlined />
-                </p>
-              </Dragger>
-              
-            
-            return isShowVideo? 
-            <video 
-                  className='player' 
-                  src={videoSrc} />
-                :
-                upProg})()}
-      </Card>
-      <Card className='mainCard'  bordered={false}>
-          {(()=>{
-            const upProg=isShowUpProg?<>
-                  <Spin indicator={antIcon} size='large'><div style={{height:'60vh'}}/></Spin>
-                </>
-              :
-              <Dragger {...props} className='dropbox' ref={uploaderRef}>
-                <p className="ant-upload-drag-icon">
-                <PlusOutlined />
-                </p>
-              </Dragger>
-              
-            
-            return isShowVideo? 
-            <video 
-                  className='player' 
-                  src={videoSrc} />
-                :
-                upProg})()}
-      </Card>
-    </div>
-  }
+    ));
+  };
+  
+  const show_video = () => {
+    return <div className="videobox">{renderCards()}</div>;
+  };
   
   const video_panel = ()=>{
     return <div className='video_panel'>

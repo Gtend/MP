@@ -119,45 +119,6 @@ def process_video():
         )
 
         return response
-    
-    
-# @app.route('/upload_video', methods=['GET'])
-# def upload_video():   
-#     results=dict()
-#     print(type(data['video']))
-#     video_data = base64.b64decode(data['video'].split('base64,')[1])
-#     print(type(video_data))
-#     results['video_result']=data['video']
-      
-#     response = app.response_class(
-#     # response=json.dumps({'message': 'image 잘 받았어요'}),
-#     response=json.dumps(results),
-#     status=200,
-#     mimetype='application/json',
-#     )
-
-#     return response
-
-
-@app.route('/upload_video', methods=['GET'])
-def upload_video():
-    results = dict()
-
-    try:
-        with open('temp_video.mp4', 'rb') as video_file:
-            video_data = video_file.read()
-            encoded_video = base64.b64encode(video_data).decode('utf-8')
-            results['video_result'] = f"data:video/mp4;base64,{encoded_video}"
-    except FileNotFoundError:
-        return jsonify({'error': 'temp_video.mp4 not found'}), 404
-
-    response = app.response_class(
-        response=json.dumps(results),
-        status=200,
-        mimetype='application/json',
-    )
-
-    return response
 
 
 

@@ -72,3 +72,10 @@
 .mainCard .ant-card-body{
   height: 100%;
 }
+
+.video-player {
+  width: 100%;      /* 카드에 맞게 비율 유지 */
+  height: auto;     /* 원본 비율 유지 */
+  max-height: 500px; /* 최대 높이 제한 */
+  border-radius: 10px; /* 둥근 모서리 추가 (선택사항) */
+}
